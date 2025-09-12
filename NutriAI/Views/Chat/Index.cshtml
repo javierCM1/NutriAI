@@ -1,0 +1,225 @@
+﻿@model NutriAI.Models.ChatViewModel
+
+@{
+    ViewBag.Title = "NutriAI - Chat";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<div class="chat-container">
+    <!-- Sidebar con historial -->
+    <div class="sidebar">
+        <div class="logo">
+            <h3><i class="fas fa-seedling"></i> NutriAI</h3>
+            <p class="mb-0">Tu nutricionista virtual</p>
+        </div>
+
+        <button class="new-chat-btn" id="newChatBtn">
+            <i class="fas fa-plus"></i> Nueva conversación
+        </button>
+
+        <div class="chat-history">
+            <h5>Historial de conversaciones</h5>
+            <div id="historyList">
+                @if (Model.ChatSessions != null && Model.ChatSessions.Any())
+                {
+                    foreach (var session in Model.ChatSessions)
+                    {
+                        <div class="history-item" data-session-id="@session.Id">
+                            <div class="d-flex justify-content-between">
+                                <strong>@session.Title</strong>
+                                <span>@session.MessageCount mensajes</span>
+                            </div>
+                            <small>@session.LastMessageTime.ToString("g")</small>
+                        </div>
+                    }
+                }
+                else
+                {
+                    <p>No hay conversaciones previas</p>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- Área principal del chat -->
+    <div class="chat-main">
+
+        <div class="chat-main_in">
+
+     
+
+        <div class="chat-messages" id="chatMessages">
+            <!-- Los mensajes se cargarán aquí -->
+            <div class="welcome-message text-center" style="padding-top: 30%;">
+                <i class="fas fa-comments fa-3x mb-3" style="color: #2e7d32;"></i>
+                <h4>¡Hola! Soy tu nutricionista IA</h4>
+                <p>Pregúntame sobre alimentación saludable, dietas o nutrientes.</p>
+            </div>
+        </div>
+
+        <div class="chat-input">
+            <div class="input-group">
+                <textarea class="form-control message-input" id="messageInput" rows="1" placeholder="Escribe tu pregunta sobre nutrición..." onkeydown="if(event.key === 'Enter' && !event.shiftKey) {event.preventDefault(); sendMessage();}"></textarea>
+                <button class="btn send-button ms-2" id="sendButton" onclick="sendMessage()">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+        </div>
+
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        var currentSessionId = '@Model.CurrentSessionId';
+
+        // Función para enviar mensaje
+        function sendMessage() {
+            const messageInput = document.getElementById('messageInput');
+            const message = messageInput.value.trim();
+
+            if (message === '') return;
+
+            // Agregar mensaje de usuario a la interfaz
+            addMessageToChat(message, 'user');
+
+            // Limpiar input
+            messageInput.value = '';
+
+            // Mostrar indicador de escribiendo
+            showTypingIndicator();
+
+            // Enviar mensaje al servidor
+            $.post('@Url.Action("SendMessage", "Chat")', {
+                message: message,
+                sessionId: currentSessionId
+            }, function(response) {
+                // Ocultar indicador de escribiendo
+                hideTypingIndicator();
+
+                if (response.success) {
+                    // Actualizar sessionId si es una nueva sesión
+                    if (currentSessionId === '' && response.sessionId) {
+                        currentSessionId = response.sessionId;
+                        updateChatTitle(response.chatTitle);
+                    }
+
+                    // Agregar respuesta de la IA
+                    addMessageToChat(response.message, 'ai');
+
+                    // Actualizar historial si es necesario
+                    if (response.updateHistory) {
+                        updateHistoryList(response.sessionId, response.chatTitle);
+                    }
+                } else {
+                    // Mostrar error
+                    addMessageToChat('Lo siento, ha ocurrido un error. Por favor, intenta nuevamente.', 'ai');
+                }
+            }).fail(function() {
+                hideTypingIndicator();
+                addMessageToChat('Error de conexión. Por favor, intenta nuevamente.', 'ai');
+            });
+        }
+
+        // Función para agregar mensaje al chat
+        function addMessageToChat(message, sender) {
+            const chatMessages = document.getElementById('chatMessages');
+
+            // Ocultar mensaje de bienvenida si existe
+            const welcomeMessage = chatMessages.querySelector('.welcome-message');
+            if (welcomeMessage) {
+                welcomeMessage.style.display = 'none';
+            }
+
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${sender}-message`;
+            messageDiv.textContent = message;
+
+            const timestamp = document.createElement('div');
+            timestamp.className = 'timestamp';
+            timestamp.textContent = new Date().toLocaleTimeString();
+
+            messageDiv.appendChild(timestamp);
+            chatMessages.appendChild(messageDiv);
+
+            // Scroll to bottom
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // Mostrar indicador de escribiendo
+        function showTypingIndicator() {
+            const chatMessages = document.getElementById('chatMessages');
+            const typingDiv = document.createElement('div');
+            typingDiv.id = 'typingIndicator';
+            typingDiv.className = 'message ai-message';
+            typingDiv.innerHTML = '<i class="fas fa-ellipsis-h"></i> NutriAI está escribiendo...';
+            chatMessages.appendChild(typingDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // Ocultar indicador de escribiendo
+        function hideTypingIndicator() {
+            const typingIndicator = document.getElementById('typingIndicator');
+            if (typingIndicator) {
+                typingIndicator.remove();
+            }
+        }
+
+        // Actualizar título del chat
+        function updateChatTitle(title) {
+            document.getElementById('currentChatTitle').textContent = title;
+        }
+
+        // Actualizar lista de historial
+        function updateHistoryList(sessionId, title) {
+            const historyList = document.getElementById('historyList');
+            const historyItem = document.createElement('div');
+            historyItem.className = 'history-item';
+            historyItem.setAttribute('data-session-id', sessionId);
+            historyItem.innerHTML = `
+                <div class="d-flex justify-content-between">
+                    <strong>${title}</strong>
+                    <span>1 mensaje</span>
+                </div>
+                <small>${new Date().toLocaleString()}</small>
+            `;
+
+            // Agregar event listener para cargar esta conversación
+            historyItem.addEventListener('click', function() {
+                loadChatSession(sessionId);
+            });
+
+            historyList.insertBefore(historyItem, historyList.firstChild);
+        }
+
+        // Cargar sesión de chat específica
+        function loadChatSession(sessionId) {
+            // Implementar carga de conversación previa
+            console.log('Cargando sesión: ' + sessionId);
+            // Aquí harías una llamada AJAX para cargar los mensajes de esta sesión
+        }
+
+        // Nueva conversación
+        document.getElementById('newChatBtn').addEventListener('click', function() {
+            currentSessionId = '';
+            document.getElementById('currentChatTitle').textContent = 'Nueva conversación';
+            document.getElementById('currentChatSubtitle').textContent = 'Haz una pregunta sobre nutrición';
+
+            // Limpiar mensajes y mostrar bienvenida
+            document.getElementById('chatMessages').innerHTML = `
+                <div class="welcome-message text-center" style="padding-top: 30%;">
+                    <i class="fas fa-comments fa-3x mb-3" style="color: #2e7d32;"></i>
+                    <h4>¡Hola! Soy tu nutricionista IA</h4>
+                    <p>Pregúntame sobre alimentación saludable, dietas o nutrientes.</p>
+                </div>
+            `;
+        });
+
+        // Autoajustar altura del textarea
+        document.getElementById('messageInput').addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = (this.scrollHeight) + 'px';
+        });
+    </script>
+}
