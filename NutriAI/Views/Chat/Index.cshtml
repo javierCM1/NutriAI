@@ -1,5 +1,6 @@
 ﻿@model NutriAI.Models.ChatViewModel
 
+
 @{
     ViewBag.Title = "NutriAI - Chat";
     Layout = "~/Views/Shared/_Layout.cshtml";
@@ -59,167 +60,184 @@
 
         <div class="chat-input">
             <div class="input-group">
-                <textarea class="form-control message-input" id="messageInput" rows="1" placeholder="Escribe tu pregunta sobre nutrición..." onkeydown="if(event.key === 'Enter' && !event.shiftKey) {event.preventDefault(); sendMessage();}"></textarea>
+                <button class="btn btn-outline-success me-2" type="button" data-bs-toggle="modal" data-bs-target="#userInfoModal">
+                    <i class="fas fa-user"></i>
+                </button>
+                <textarea class="form-control message-input" id="messageInput" rows="1" placeholder="Escribe tu pregunta sobre nutrición..." }"></textarea>
                 <button class="btn send-button ms-2" id="sendButton" onclick="sendMessage()">
                     <i class="fas fa-paper-plane"></i>
                 </button>
             </div>
         </div>
 
+            <div class="modal fade" id="userInfoModal" tabindex="-1" aria-labelledby="userInfoModalLabel" aria-hidden="true">
+                <div class="modal-dialog">
+                    <div class="modal-content rounded-3 shadow">
+                        <div class="modal-header bg-success text-white">
+                            <h5 class="modal-title" id="userInfoModalLabel"><i class="fas fa-user"></i> Datos del Usuario</h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                        </div>
+                        <div class="modal-body">
+                          
+
+                            @using (Html.BeginForm("GuardarUserInfo", "Chat", FormMethod.Post, new { id = "userInfoForm" }))
+                            {
+                                @Html.AntiForgeryToken()
+
+                                <div class="mb-3">
+                                    @Html.LabelFor(m => m.UserInfo.Edad, new { @class = "form-label" })
+                                    @Html.TextBoxFor(m => m.UserInfo.Edad, new { @class = "form-control", @type = "number", @placeholder = "Ej: 25" })
+                                    @Html.ValidationMessageFor(m => m.UserInfo.Edad, "", new { @class = "text-danger" })
+                                </div>
+
+                                <div class="mb-3">
+                                    @Html.LabelFor(m => m.UserInfo.Altura, new { @class = "form-label" })
+                                    @Html.TextBoxFor(m => m.UserInfo.Altura, new { @class = "form-control", @type = "number", @placeholder = "Ej: 175" })
+                                    @Html.ValidationMessageFor(m => m.UserInfo.Altura, "", new { @class = "text-danger" })
+                                </div>
+
+                                <div class="mb-3">
+                                    @Html.LabelFor(m => m.UserInfo.Peso, new { @class = "form-label" })
+                                    @Html.TextBoxFor(m => m.UserInfo.Peso, new { @class = "form-control", @type = "number", @placeholder = "Ej: 70" })
+                                    @Html.ValidationMessageFor(m => m.UserInfo.Peso, "", new { @class = "text-danger" })
+                                </div>
+
+                                <div class="mb-3">
+                                    @Html.LabelFor(m => m.UserInfo.PreferenciaAlimenticia, new { @class = "form-label" })
+                                    @Html.TextBoxFor(m => m.UserInfo.PreferenciaAlimenticia, new { @class = "form-control", @placeholder = "Ej: Vegetariano, sin gluten..." })
+                                    @Html.ValidationMessageFor(m => m.UserInfo.PreferenciaAlimenticia, "", new { @class = "text-danger" })
+                                </div>
+                            }
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="submit" class="btn btn-success" form="userInfoForm">Guardar</button>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
         </div>
+
+
+
+
     </div>
 </div>
-
 @section Scripts {
     <script>
-        var currentSessionId = '@Model.CurrentSessionId';
+        document.addEventListener("DOMContentLoaded", function () {
+            const userInfoForm = document.getElementById("userInfoForm");
 
-        // Función para enviar mensaje
-        function sendMessage() {
-            const messageInput = document.getElementById('messageInput');
-            const message = messageInput.value.trim();
+            userInfoForm.addEventListener("submit", function (e) {
+                e.preventDefault();
 
-            if (message === '') return;
+                const formData = new FormData(userInfoForm);
+                const userInfo = {
+                    edad: parseInt(formData.get("UserInfo.Edad")),
+                    altura: parseFloat(formData.get("UserInfo.Altura")),
+                    peso: parseFloat(formData.get("UserInfo.Peso")),
+                    preferenciaAlimenticia: formData.get("UserInfo.PreferenciaAlimenticia")
+                };
 
-            // Agregar mensaje de usuario a la interfaz
-            addMessageToChat(message, 'user');
+                const token = formData.get("__RequestVerificationToken");
 
-            // Limpiar input
-            messageInput.value = '';
+              
+                fetch("/Chat/GuardarUserInfo", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                    body: new URLSearchParams({
+                        "__RequestVerificationToken": token,
+                        "UserInfo.Edad": userInfo.edad,
+                        "UserInfo.Altura": userInfo.altura,
+                        "UserInfo.Peso": userInfo.peso,
+                        "UserInfo.PreferenciaAlimenticia": userInfo.preferenciaAlimenticia
+                    })
+                })
+                .then(r => r.json())
+                .then(data => {
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('userInfoModal'));
+                    modal.hide();
+                    addMessage("NutriAI", data.mensaje);
+                })
+                .catch(err => {
+                    console.error(err);
+                    addMessage("NutriAI", "Error al guardar los datos del usuario.");
+                });
+            });
 
-            // Mostrar indicador de escribiendo
-            showTypingIndicator();
+            window.sendMessage = function () {
+                const messageInput = document.getElementById("messageInput");
+                const message = messageInput.value.trim();
+                if (!message) return;
 
-            // Enviar mensaje al servidor
-            $.post('@Url.Action("SendMessage", "Chat")', {
-                message: message,
-                sessionId: currentSessionId
-            }, function(response) {
-                // Ocultar indicador de escribiendo
-                hideTypingIndicator();
+                addMessage("Tú", message);
+                messageInput.value = "";
 
-                if (response.success) {
-                    // Actualizar sessionId si es una nueva sesión
-                    if (currentSessionId === '' && response.sessionId) {
-                        currentSessionId = response.sessionId;
-                        updateChatTitle(response.chatTitle);
-                    }
+                showTypingIndicator();
 
-                    // Agregar respuesta de la IA
-                    addMessageToChat(response.message, 'ai');
+                fetch("/Chat/EnviarMensaje", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                    body: new URLSearchParams({ mensaje: message })
+                })
+                .then(r => r.json())
+                .then(data => {
+                  
+                    hideTypingIndicator();
+                    addMessage("NutriAI", data.respuesta);
+                })
+                .catch(err => {
+                    hideTypingIndicator();
+                    addMessage("NutriAI", "Error al comunicarse con el servidor.");
+                });
+            };
 
-                    // Actualizar historial si es necesario
-                    if (response.updateHistory) {
-                        updateHistoryList(response.sessionId, response.chatTitle);
-                    }
-                } else {
-                    // Mostrar error
-                    addMessageToChat('Lo siento, ha ocurrido un error. Por favor, intenta nuevamente.', 'ai');
+            function addMessage(sender, text) {
+                const msgContainer = document.getElementById("chatMessages");
+
+              
+                const welcome = msgContainer.querySelector(".welcome-message");
+                if (welcome) {
+                    welcome.style.display = "none";
                 }
-            }).fail(function() {
-                hideTypingIndicator();
-                addMessageToChat('Error de conexión. Por favor, intenta nuevamente.', 'ai');
-            });
-        }
 
-        // Función para agregar mensaje al chat
-        function addMessageToChat(message, sender) {
-            const chatMessages = document.getElementById('chatMessages');
-
-            // Ocultar mensaje de bienvenida si existe
-            const welcomeMessage = chatMessages.querySelector('.welcome-message');
-            if (welcomeMessage) {
-                welcomeMessage.style.display = 'none';
+                const div = document.createElement("div");
+                div.className = sender === "NutriAI" ? "message bot-message mb-2 p-2 rounded" : "message user-message mb-2 p-2 rounded";
+                div.innerHTML = `<strong>${sender}:</strong> ${text}`;
+                msgContainer.appendChild(div);
+                msgContainer.scrollTop = msgContainer.scrollHeight;
             }
 
-            const messageDiv = document.createElement('div');
-            messageDiv.className = `message ${sender}-message`;
-            messageDiv.textContent = message;
-
-            const timestamp = document.createElement('div');
-            timestamp.className = 'timestamp';
-            timestamp.textContent = new Date().toLocaleTimeString();
-
-            messageDiv.appendChild(timestamp);
-            chatMessages.appendChild(messageDiv);
-
-            // Scroll to bottom
-            chatMessages.scrollTop = chatMessages.scrollHeight;
-        }
-
-        // Mostrar indicador de escribiendo
-        function showTypingIndicator() {
-            const chatMessages = document.getElementById('chatMessages');
-            const typingDiv = document.createElement('div');
-            typingDiv.id = 'typingIndicator';
-            typingDiv.className = 'message ai-message';
-            typingDiv.innerHTML = '<i class="fas fa-ellipsis-h"></i> NutriAI está escribiendo...';
-            chatMessages.appendChild(typingDiv);
-            chatMessages.scrollTop = chatMessages.scrollHeight;
-        }
-
-        // Ocultar indicador de escribiendo
-        function hideTypingIndicator() {
-            const typingIndicator = document.getElementById('typingIndicator');
-            if (typingIndicator) {
-                typingIndicator.remove();
+         
+            function showTypingIndicator() {
+                const msgContainer = document.getElementById("chatMessages");
+                const typingDiv = document.createElement("div");
+                typingDiv.id = "typingIndicator";
+                typingDiv.className = "message bot-message mb-2 p-2 rounded";
+                typingDiv.innerHTML = '<strong>NutriAI:</strong> <em>Escribiendo...</em>';
+                msgContainer.appendChild(typingDiv);
+                msgContainer.scrollTop = msgContainer.scrollHeight;
             }
-        }
 
-        // Actualizar título del chat
-        function updateChatTitle(title) {
-            document.getElementById('currentChatTitle').textContent = title;
-        }
+        
+            function hideTypingIndicator() {
+                const typingIndicator = document.getElementById("typingIndicator");
+                if (typingIndicator) {
+                    typingIndicator.remove();
+                }
+            }
 
-        // Actualizar lista de historial
-        function updateHistoryList(sessionId, title) {
-            const historyList = document.getElementById('historyList');
-            const historyItem = document.createElement('div');
-            historyItem.className = 'history-item';
-            historyItem.setAttribute('data-session-id', sessionId);
-            historyItem.innerHTML = `
-                <div class="d-flex justify-content-between">
-                    <strong>${title}</strong>
-                    <span>1 mensaje</span>
-                </div>
-                <small>${new Date().toLocaleString()}</small>
-            `;
-
-            // Agregar event listener para cargar esta conversación
-            historyItem.addEventListener('click', function() {
-                loadChatSession(sessionId);
+         
+            document.getElementById("messageInput").addEventListener("keypress", function(e) {
+                if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                }
             });
 
-            historyList.insertBefore(historyItem, historyList.firstChild);
-        }
-
-        // Cargar sesión de chat específica
-        function loadChatSession(sessionId) {
-            // Implementar carga de conversación previa
-            console.log('Cargando sesión: ' + sessionId);
-            // Aquí harías una llamada AJAX para cargar los mensajes de esta sesión
-        }
-
-        // Nueva conversación
-        document.getElementById('newChatBtn').addEventListener('click', function() {
-            currentSessionId = '';
-            document.getElementById('currentChatTitle').textContent = 'Nueva conversación';
-            document.getElementById('currentChatSubtitle').textContent = 'Haz una pregunta sobre nutrición';
-
-            // Limpiar mensajes y mostrar bienvenida
-            document.getElementById('chatMessages').innerHTML = `
-                <div class="welcome-message text-center" style="padding-top: 30%;">
-                    <i class="fas fa-comments fa-3x mb-3" style="color: #2e7d32;"></i>
-                    <h4>¡Hola! Soy tu nutricionista IA</h4>
-                    <p>Pregúntame sobre alimentación saludable, dietas o nutrientes.</p>
-                </div>
-            `;
-        });
-
-        // Autoajustar altura del textarea
-        document.getElementById('messageInput').addEventListener('input', function() {
-            this.style.height = 'auto';
-            this.style.height = (this.scrollHeight) + 'px';
         });
     </script>
+}
+
 }

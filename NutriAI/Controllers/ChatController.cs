@@ -1,158 +1,89 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using NutriAI.Models;
-using System;
-using System.Collections.Generic;
-using System.Linq;
+using NutriAIServicio;
+using System.Text.Json;
+using System.Threading.Tasks;
 
 namespace NutriAI.Controllers
 {
     public class ChatController : Controller
     {
-        // Simulación de base de datos en memoria
         private static List<ChatSession> _sessions = new List<ChatSession>();
-        private static int _sessionIdCounter = 1;
-        private static int _messageIdCounter = 1;
+        private readonly OllamaService _ollamaService;
 
+  
+        public ChatController(OllamaService ollamaService)
+        {
+            _ollamaService = ollamaService;
+        }
+
+ 
         public IActionResult Index()
         {
             var model = new ChatViewModel
             {
                 CurrentSessionId = "",
-                ChatSessions = _sessions.OrderByDescending(s => s.LastMessageTime).ToList()
+                ChatSessions = _sessions,
+                UserInfo = null
             };
-
             return View(model);
         }
 
         [HttpPost]
-        public JsonResult SendMessage([FromBody] SendMessageRequest request)
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> GuardarUserInfo(UserInfo userInfo)
         {
+            if (!ModelState.IsValid)
+                return Json(new { mensaje = "Error: datos inválidos" });
+
+    
+            HttpContext.Session.SetString("UserInfo", JsonSerializer.Serialize(userInfo));
+
             try
             {
-                string responseMessage = GenerateNutritionResponse(request.Message);
-                string sessionId = request.SessionId;
-                string chatTitle = GenerateChatTitle(request.Message);
-                bool isNewSession = false;
+          
+                var respuesta = await _ollamaService.GetNutritionResponseAsync(
+                    userInfo.Edad,
+                    userInfo.Peso,
+                    userInfo.Altura,
+                    userInfo.PreferenciaAlimenticia,
+                    "Hola, acabo de registrar mis datos. ¿Podrías darme una recomendación nutricional general para mi perfil?"
+                );
 
-                // Buscar o crear sesión
-                ChatSession session;
-                if (string.IsNullOrEmpty(sessionId))
-                {
-                    // Crear nueva sesión
-                    session = new ChatSession
-                    {
-                        Id = _sessionIdCounter++,
-                        Title = chatTitle,
-                        CreatedAt = DateTime.Now,
-                        LastMessageTime = DateTime.Now,
-                        MessageCount = 0
-                    };
-                    _sessions.Add(session);
-                    isNewSession = true;
-                    sessionId = session.Id.ToString();
-                }
-                else
-                {
-                    // Usar sesión existente
-                    int id = int.Parse(sessionId);
-                    session = _sessions.FirstOrDefault(s => s.Id == id);
-                    if (session == null)
-                    {
-                        // Si no existe, crear nueva
-                        session = new ChatSession
-                        {
-                            Id = _sessionIdCounter++,
-                            Title = chatTitle,
-                            CreatedAt = DateTime.Now,
-                            LastMessageTime = DateTime.Now,
-                            MessageCount = 0
-                        };
-                        _sessions.Add(session);
-                        isNewSession = true;
-                        sessionId = session.Id.ToString();
-                    }
-                    else
-                    {
-                        session.LastMessageTime = DateTime.Now;
-                    }
-                }
-
-                // Agregar mensaje del usuario
-                var userMessage = new ChatMessage
-                {
-                    Id = _messageIdCounter++,
-                    SessionId = session.Id,
-                    Message = request.Message,
-                    IsUserMessage = true,
-                    Timestamp = DateTime.Now
-                };
-                session.Messages.Add(userMessage);
-                session.MessageCount++;
-
-                // Agregar respuesta de la IA
-                var aiMessage = new ChatMessage
-                {
-                    Id = _messageIdCounter++,
-                    SessionId = session.Id,
-                    Message = responseMessage,
-                    IsUserMessage = false,
-                    Timestamp = DateTime.Now
-                };
-                session.Messages.Add(aiMessage);
-                session.MessageCount++;
-
-                return Json(new SendMessageResponse
-                {
-                    Success = true,
-                    Message = responseMessage,
-                    SessionId = sessionId,
-                    ChatTitle = session.Title,
-                    UpdateHistory = isNewSession
-                });
+                return Json(new { mensaje = respuesta });
             }
-            catch (Exception ex)
+            catch
             {
-                return Json(new SendMessageResponse
-                {
-                    Success = false,
-                    Message = "Error: " + ex.Message
-                });
+                return Json(new { mensaje = "Error al comunicarse con el servicio de IA." });
             }
         }
 
-        private string GenerateNutritionResponse(string userMessage)
+        [HttpPost]
+        public async Task<IActionResult> EnviarMensaje([FromForm] string mensaje)
         {
-            // Tu lógica de respuesta aquí (la misma que antes)
-            userMessage = userMessage.ToLower();
+            var userInfoJson = HttpContext.Session.GetString("UserInfo");
+            if (string.IsNullOrEmpty(userInfoJson))
+                return Json(new { respuesta = "Primero completa tus datos en el formulario." });
 
-            if (userMessage.Contains("proteína") || userMessage.Contains("proteínas"))
-            {
-                return "Las proteínas son esenciales para construir y reparar tejidos...";
-            }
-            // ... resto de tu lógica
-            else
-            {
-                return "Como nutricionista IA, puedo ayudarte con temas de nutrición...";
-            }
-        }
+            var userInfo = JsonSerializer.Deserialize<UserInfo>(userInfoJson);
 
-        private string GenerateChatTitle(string firstMessage)
-        {
-            if (firstMessage.Length > 30)
+            try
             {
-                return firstMessage.Substring(0, 30) + "...";
-            }
-            return firstMessage;
-        }
+           
+                var respuesta = await _ollamaService.GetNutritionResponseAsync(
+                    userInfo.Edad,
+                    userInfo.Peso,
+                    userInfo.Altura,
+                    userInfo.PreferenciaAlimenticia,
+                    mensaje
+                );
 
-        public JsonResult GetChatHistory(int sessionId)
-        {
-            var session = _sessions.FirstOrDefault(s => s.Id == sessionId);
-            if (session != null)
-            {
-                return Json(session.Messages.OrderBy(m => m.Timestamp).ToList());
+                return Json(new { respuesta = respuesta });
             }
-            return Json(new List<ChatMessage>());
+            catch
+            {
+                return Json(new { respuesta = "Error al comunicarse con el servicio de IA." });
+            }
         }
     }
 }
