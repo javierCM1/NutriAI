@@ -30,6 +30,7 @@ public class OllamaService
 
             Responde de manera:
             CLARA - Lenguaje sencillo y práctico
+            CONCISA - En pocas palabras
             ESPECÍFICA - Alimentos y porciones concretas
             PROFESIONAL - Basado en evidencia científica
             PERSONALIZADA - Para este perfil específico
@@ -39,7 +40,7 @@ public class OllamaService
 
         var requestData = new
         {
-            model = "llama3.2:1b",
+            model = "llama3-lora",
             prompt = prompt,
             stream = false,
             options = new
