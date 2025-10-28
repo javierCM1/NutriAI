@@ -41,14 +41,14 @@ namespace NutriAI.Controllers
 
             try
             {
-          
+
                 var respuesta = await _ollamaService.GetNutritionResponseAsync(
-                    userInfo.Edad,
-                    userInfo.Peso,
-                    userInfo.Altura,
-                    userInfo.PreferenciaAlimenticia,
+                    userInfo.Edad ?? 0,
+                    (double)(userInfo.Peso ?? 0),
+                    (double)(userInfo.Altura ?? 0),
+                    userInfo.PreferenciaAlimenticia ?? "",
                     "Hola, acabo de registrar mis datos. ¿Podrías darme una recomendación nutricional general para mi perfil?"
-                );
+                 );
 
                 return Json(new { mensaje = respuesta });
             }
@@ -69,14 +69,14 @@ namespace NutriAI.Controllers
 
             try
             {
-           
+
                 var respuesta = await _ollamaService.GetNutritionResponseAsync(
-                    userInfo.Edad,
-                    userInfo.Peso,
-                    userInfo.Altura,
-                    userInfo.PreferenciaAlimenticia,
-                    mensaje
-                );
+                userInfo.Edad ?? 0,
+                (double)(userInfo.Peso ?? 0),
+                (double)(userInfo.Altura ?? 0),
+                userInfo.PreferenciaAlimenticia ?? "",
+                mensaje
+);
 
                 return Json(new { respuesta = respuesta });
             }
