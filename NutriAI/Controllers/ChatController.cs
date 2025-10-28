@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Entidad.Models;
-using NutriAIServicio;
 using NutriAI.Models;
+using NutriAIServicio;
 using System.Text.Json;
 using System.Threading.Tasks;
 

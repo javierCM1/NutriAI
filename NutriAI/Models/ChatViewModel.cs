@@ -1,5 +1,5 @@
 ﻿using System.Collections.Generic;
-
+using Entidad.Models;
 namespace NutriAI.Models
 {
     public class ChatViewModel
