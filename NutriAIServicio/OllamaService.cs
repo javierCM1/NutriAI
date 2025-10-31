@@ -40,7 +40,7 @@ public class OllamaService
 
         var requestData = new
         {
-            model = "llama3-lora",
+            model = "llama3lora",
             prompt = prompt,
             stream = false,
             options = new
