@@ -1,7 +1,10 @@
+using Entidad.Models;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using NutriAI.Services;
 using NutriAIServicio;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -14,6 +17,9 @@ var connectionString = builder.Configuration.GetConnectionString("NutriAIConnect
 // Registrar el DbContext con la inyección de dependencias
 builder.Services.AddDbContext<Entidad.Context.NutriAIContext>(options =>
     options.UseSqlServer(connectionString));
+
+builder.Services.AddScoped<IPasswordHasher<Usuario>, PasswordHasher<Usuario>>();
+builder.Services.AddScoped<IAuthService, AuthService>();
 
 builder.Services.AddHttpClient<OllamaService>();
 builder.Services.AddDistributedMemoryCache();
