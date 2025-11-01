@@ -7,7 +7,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NutriAI", "NutriAI\NutriAI.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NutriAIServicio", "NutriAIServicio\NutriAIServicio.csproj", "{4B923BF1-859A-4B83-9E5E-F044BD156439}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Entidad", "afadsf\Entidad.csproj", "{49F801B7-6068-4245-B9C1-FF7A5B195FF6}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Entidad", "Entidad\Entidad.csproj", "{49F801B7-6068-4245-B9C1-FF7A5B195FF6}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
