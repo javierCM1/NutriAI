@@ -361,3 +361,14 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# Archivos de modelos grandes (ML) y temporales
+final-llama3-lora.gguf
+llama.cpp/
+lora-output/
+final-llama3-lora/
+train_lora.py
+
+# Archivos de compilación de C# que no se deben subir
+**/bin/
+**/obj/

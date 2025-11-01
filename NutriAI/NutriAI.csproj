@@ -16,7 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\afadsf\Entidad.csproj" />
+    <ProjectReference Include="..\Entidad\Entidad.csproj" />
     <ProjectReference Include="..\NutriAIServicio\NutriAIServicio.csproj" />
   </ItemGroup>
 

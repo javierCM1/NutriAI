@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Builder;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using NutriAIServicio;
@@ -7,6 +8,12 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllersWithViews();
 
+// Obtener la cadena de conexión del archivo de configuración
+var connectionString = builder.Configuration.GetConnectionString("NutriAIConnection");
+
+// Registrar el DbContext con la inyección de dependencias
+builder.Services.AddDbContext<Entidad.Context.NutriAIContext>(options =>
+    options.UseSqlServer(connectionString));
 
 builder.Services.AddHttpClient<OllamaService>();
 builder.Services.AddDistributedMemoryCache();
