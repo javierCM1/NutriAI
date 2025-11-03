@@ -7,5 +7,6 @@ namespace NutriAI.Models
         public string CurrentSessionId { get; set; }
         public List<ChatSession> ChatSessions { get; set; }
         public UserInfo UserInfo { get; set; }
+        public List<ChatMessage> ChatMessages { get; set; }
     }
 }

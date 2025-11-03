@@ -1,0 +1,91 @@
+﻿@* NutriAI/Views/Account/Login.cshtml *@
+
+@{
+    ViewData["Title"] = "Iniciar Sesión";
+}
+
+<div class="row justify-content-center mt-5">
+    <div class="col-md-5">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h3 class="mb-0">Inicio de Sesión</h3>
+            </div>
+            <div class="card-body">
+
+                <div id="message-container" class="alert d-none"></div>
+
+                <form id="loginForm">
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Correo Electrónico</label>
+                        <input type="email" class="form-control" id="email" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Contraseña</label>
+                        <input type="password" class="form-control" id="password" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">Acceder</button>
+                </form>
+
+                <p class="mt-3 text-center">
+                    ¿No tienes cuenta? <a href="/Account/Register">Regístrate aquí</a>.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async (event) => {
+            event.preventDefault(); // Detener el envío tradicional del formulario
+
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const messageContainer = document.getElementById('message-container');
+
+            const loginData = { email, password };
+
+            try {
+                // 1. Enviar la solicitud POST al endpoint de la API
+                const response = await fetch('/api/Auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(loginData)
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    // 2. Login Exitoso: Obtener y guardar el token JWT
+                    const token = result.token; // Ya verificamos que esta propiedad existe
+
+                    // Guardar el token de forma segura en el almacenamiento local
+                    localStorage.setItem('jwtToken', token);
+
+                    // 3. Mostrar un mensaje breve de éxito (opcional)
+                    messageContainer.textContent = result.message || 'Acceso exitoso.';
+                    messageContainer.className = 'alert alert-success';
+                    messageContainer.classList.remove('d-none');
+
+                    // 4. REDIRECCIÓN INMEDIATA
+                    // Usamos la propiedad location.assign() para asegurar la navegación
+                    window.location.assign('/Chat/Index'); // <-- La redirección debe ser inmediata
+
+                } else {
+                    // Manejar errores (ej: 401 Unauthorized)
+                    // Mostrar el mensaje de error del servidor (e.g., 'Credenciales inválidas')
+                    messageContainer.textContent = result.message || 'Error desconocido al iniciar sesión.';
+                    messageContainer.className = 'alert alert-danger';
+                    messageContainer.classList.remove('d-none');
+                }
+            } catch (error) {
+                console.error('Error de conexión:', error);
+                messageContainer.textContent = 'Error de conexión con el servidor.';
+                messageContainer.className = 'alert alert-danger';
+                messageContainer.classList.remove('d-none');
+            }
+        });
+    </script>
+}

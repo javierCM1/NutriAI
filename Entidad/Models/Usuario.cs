@@ -22,6 +22,9 @@ public partial class Usuario
     [StringLength(255)]
     public string PasswordHash { get; set; } = null!;
 
+    [StringLength(50)]
+    public string Rol { get; set; } = "Usuario";
+
     [InverseProperty("Usuario")]
     public virtual ICollection<ChatSession> ChatSessions { get; set; } = new List<ChatSession>();
 

@@ -1,13 +1,11 @@
 ﻿@model NutriAI.Models.ChatViewModel
 
-
 @{
     ViewBag.Title = "NutriAI - Chat";
     Layout = "~/Views/Shared/_Layout.cshtml";
 }
 
 <div class="chat-container">
-    <!-- Sidebar con historial -->
     <div class="sidebar">
         <div class="logo">
             <h3><i class="fas fa-seedling"></i> NutriAI</h3>
@@ -42,33 +40,28 @@
         </div>
     </div>
 
-    <!-- Área principal del chat -->
     <div class="chat-main">
 
         <div class="chat-main_in">
-
-     
-
-        <div class="chat-messages" id="chatMessages">
-            <!-- Los mensajes se cargarán aquí -->
-            <div class="welcome-message text-center" style="padding-top: 30%;">
-                <i class="fas fa-comments fa-3x mb-3" style="color: #2e7d32;"></i>
-                <h4>¡Hola! Soy tu nutricionista IA</h4>
-                <p>Pregúntame sobre alimentación saludable, dietas o nutrientes.</p>
+            <div class="chat-messages" id="chatMessages">
+                <div class="welcome-message text-center" style="padding-top: 30%;">
+                    <i class="fas fa-comments fa-3x mb-3" style="color: #2e7d32;"></i>
+                    <h4>¡Hola! Soy tu nutricionista IA</h4>
+                    <p>Pregúntame sobre alimentación saludable, dietas o nutrientes.</p>
+                </div>
             </div>
-        </div>
 
-        <div class="chat-input">
-            <div class="input-group">
-                <button class="btn btn-outline-success me-2" type="button" data-bs-toggle="modal" data-bs-target="#userInfoModal">
-                    <i class="fas fa-user"></i>
-                </button>
-                <textarea class="form-control message-input" id="messageInput" rows="1" placeholder="Escribe tu pregunta sobre nutrición..." }"></textarea>
-                <button class="btn send-button ms-2" id="sendButton" onclick="sendMessage()">
-                    <i class="fas fa-paper-plane"></i>
-                </button>
+            <div class="chat-input">
+                <div class="input-group">
+                    <button class="btn btn-outline-success me-2" type="button" data-bs-toggle="modal" data-bs-target="#userInfoModal">
+                        <i class="fas fa-user"></i>
+                    </button>
+                    <textarea class="form-control message-input" id="messageInput" rows="1" placeholder="Escribe tu pregunta sobre nutrición..."></textarea>
+                    <button class="btn send-button ms-2" id="sendButton" onclick="sendMessage()">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
             </div>
-        </div>
 
             <div class="modal fade" id="userInfoModal" tabindex="-1" aria-labelledby="userInfoModalLabel" aria-hidden="true">
                 <div class="modal-dialog">
@@ -78,7 +71,6 @@
                             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
                         </div>
                         <div class="modal-body">
-                          
 
                             @using (Html.BeginForm("GuardarUserInfo", "Chat", FormMethod.Post, new { id = "userInfoForm" }))
                             {
@@ -120,52 +112,145 @@
         </div>
 
 
-
-
     </div>
 </div>
 @section Scripts {
     <script>
-        document.addEventListener("DOMContentLoaded", function () {
+        // =================================================================================
+        // 1. FUNCIÓN AUXILIAR: OBTENER HEADERS DE AUTORIZACIÓN (JWT)
+        // =================================================================================
+        function getAuthHeaders(contentType = 'application/x-www-form-urlencoded') {
+            const token = localStorage.getItem('jwtToken');
+            const headers = {
+                'Content-Type': contentType
+            };
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
+            return headers;
+        }
+
+        // =================================================================================
+        // 2. FUNCIÓN AUXILIAR: MANEJO DE AUTORIZACIÓN 401/403
+        // =================================================================================
+        function handleAuthResponse(response) {
+            if (response.status === 401 || response.status === 403) {
+                localStorage.removeItem('jwtToken');
+                window.location.assign('/Account/Login');
+                throw new Error("Sesión expirada o inválida. Redirigiendo a Login.");
+            }
+            // Solo intentamos parsear JSON si la respuesta no está vacía
+            return response.text().then(text => text ? JSON.parse(text) : {});
+        }
+
+        // =================================================================================
+        // 3. INICIO: Bloque DOMContentLoaded
+        // =================================================================================
+        document.addEventListener("DOMContentLoaded", async function () {
+
+            // 3.1. VERIFICACIÓN DE SEGURIDAD DEL CLIENTE
+            const jwtToken = localStorage.getItem('jwtToken');
+            if (!jwtToken) {
+                window.location.assign('/Account/Login');
+                return; // Detener la ejecución
+            }
+
+            // 3.2. CARGAR DATOS INICIALES (Historial de Chat y UserInfo)
+            try {
+                const response = await fetch('/Chat/GetInitialData', {
+                    method: 'GET',
+                    headers: getAuthHeaders('application/json')
+                });
+
+                if (response.status === 401 || response.status === 403) {
+                     localStorage.removeItem('jwtToken');
+                     window.location.assign('/Account/Login');
+                     return;
+                }
+
+                const data = await response.json();
+
+                // Cargar historial de mensajes
+                if (data.chatMessages && data.chatMessages.length > 0) {
+                    data.chatMessages.forEach(msg => {
+                        addMessage(msg.isUserMessage ? "Tú" : "NutriAI", msg.message);
+                    });
+                }
+
+                // Cargar historial de sesiones (a la izquierda)
+                const historyList = document.getElementById('historyList');
+                historyList.innerHTML = ''; // Limpiar "No hay conversaciones"
+                if (data.chatSessions && data.chatSessions.length > 0) {
+                    data.chatSessions.forEach(session => {
+                        const sessionHtml = `
+                            <div class="history-item" data-session-id="${session.id}">
+                                <div class="d-flex justify-content-between">
+                                    <strong>${session.title}</strong>
+                                    <span>${session.messageCount} mensajes</span>
+                                </div>
+                                <small>${new Date(session.lastMessageTime).toLocaleString()}</small>
+                            </div>`;
+                        historyList.insertAdjacentHTML('beforeend', sessionHtml);
+                    });
+                } else {
+                    historyList.innerHTML = '<p>No hay conversaciones previas</p>';
+                }
+
+                // Cargar UserInfo (en el modal)
+                if (data.userInfo) {
+
+                    document.getElementById('UserInfo_Edad').value = data.userInfo.edad;
+                    document.getElementById('UserInfo_Altura').value = data.userInfo.altura;
+                    document.getElementById('UserInfo_Peso').value = data.userInfo.peso;
+                    document.getElementById('UserInfo_PreferenciaAlimenticia').value = data.userInfo.preferenciaAlimenticia;
+                }
+
+            } catch (error) {
+                console.error("Error al cargar datos iniciales:", error);
+                if (error.message && error.message.startsWith("Sesión expirada")) return;
+                localStorage.removeItem('jwtToken');
+                window.location.assign('/Account/Login');
+            }
+
+            // =================================================================================
+            // 4. EVENTO: GUARDAR DATOS DEL USUARIO (GuardarUserInfo)
+            // =================================================================================
             const userInfoForm = document.getElementById("userInfoForm");
 
             userInfoForm.addEventListener("submit", function (e) {
                 e.preventDefault();
-
                 const formData = new FormData(userInfoForm);
-                const userInfo = {
-                    edad: parseInt(formData.get("UserInfo.Edad")),
-                    altura: parseFloat(formData.get("UserInfo.Altura")),
-                    peso: parseFloat(formData.get("UserInfo.Peso")),
-                    preferenciaAlimenticia: formData.get("UserInfo.PreferenciaAlimenticia")
-                };
+                const bodyParams = new URLSearchParams();
 
-                const token = formData.get("__RequestVerificationToken");
+                // Usamos los nombres de propiedad del modelo UserInfo (Edad, Peso, etc.)
+                // para que el ModelBinding del controlador [FromForm] funcione.
+                bodyParams.append("__RequestVerificationToken", formData.get("__RequestVerificationToken"));
+                bodyParams.append("Edad", formData.get("UserInfo.Edad"));
+                bodyParams.append("Altura", formData.get("UserInfo.Altura"));
+                bodyParams.append("Peso", formData.get("UserInfo.Peso"));
+                bodyParams.append("PreferenciaAlimenticia", formData.get("UserInfo.PreferenciaAlimenticia"));
 
-              
                 fetch("/Chat/GuardarUserInfo", {
                     method: "POST",
-                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                    body: new URLSearchParams({
-                        "__RequestVerificationToken": token,
-                        "UserInfo.Edad": userInfo.edad,
-                        "UserInfo.Altura": userInfo.altura,
-                        "UserInfo.Peso": userInfo.peso,
-                        "UserInfo.PreferenciaAlimenticia": userInfo.preferenciaAlimenticia
-                    })
+                    headers: getAuthHeaders("application/x-www-form-urlencoded"),
+                    body: bodyParams
                 })
-                .then(r => r.json())
+                .then(handleAuthResponse)
                 .then(data => {
                     const modal = bootstrap.Modal.getInstance(document.getElementById('userInfoModal'));
                     modal.hide();
                     addMessage("NutriAI", data.mensaje);
                 })
                 .catch(err => {
+                    if (err.message && err.message.startsWith("Sesión expirada")) return;
                     console.error(err);
                     addMessage("NutriAI", "Error al guardar los datos del usuario.");
                 });
             });
 
+            // =================================================================================
+            // 5. EVENTO: ENVIAR MENSAJE (EnviarMensaje)
+            // =================================================================================
             window.sendMessage = function () {
                 const messageInput = document.getElementById("messageInput");
                 const message = messageInput.value.trim();
@@ -173,43 +258,42 @@
 
                 addMessage("Tú", message);
                 messageInput.value = "";
-
                 showTypingIndicator();
 
                 fetch("/Chat/EnviarMensaje", {
                     method: "POST",
-                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                    headers: getAuthHeaders("application/x-www-form-urlencoded"),
                     body: new URLSearchParams({ mensaje: message })
                 })
-                .then(r => r.json())
+                .then(handleAuthResponse)
                 .then(data => {
-                  
                     hideTypingIndicator();
                     addMessage("NutriAI", data.respuesta);
                 })
                 .catch(err => {
+                    if (err.message && err.message.startsWith("Sesión expirada")) return;
                     hideTypingIndicator();
                     addMessage("NutriAI", "Error al comunicarse con el servidor.");
                 });
             };
 
+            // =================================================================================
+            // 6. FUNCIONES AUXILIARES DE VISTA 
+            // =================================================================================
+
             function addMessage(sender, text) {
                 const msgContainer = document.getElementById("chatMessages");
-
-              
                 const welcome = msgContainer.querySelector(".welcome-message");
                 if (welcome) {
                     welcome.style.display = "none";
                 }
-
                 const div = document.createElement("div");
                 div.className = sender === "NutriAI" ? "message bot-message mb-2 p-2 rounded" : "message user-message mb-2 p-2 rounded";
-                div.innerHTML = `<strong>${sender}:</strong> ${text}`;
+                div.innerHTML = `<strong>${sender}:</strong> ${text}`; 
                 msgContainer.appendChild(div);
                 msgContainer.scrollTop = msgContainer.scrollHeight;
             }
 
-         
             function showTypingIndicator() {
                 const msgContainer = document.getElementById("chatMessages");
                 const typingDiv = document.createElement("div");
@@ -220,7 +304,6 @@
                 msgContainer.scrollTop = msgContainer.scrollHeight;
             }
 
-        
             function hideTypingIndicator() {
                 const typingIndicator = document.getElementById("typingIndicator");
                 if (typingIndicator) {
@@ -228,7 +311,6 @@
                 }
             }
 
-         
             document.getElementById("messageInput").addEventListener("keypress", function(e) {
                 if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
@@ -236,8 +318,6 @@
                 }
             });
 
-        });
+        }); 
     </script>
-}
-
 }
