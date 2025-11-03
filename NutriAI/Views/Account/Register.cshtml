@@ -1,0 +1,88 @@
+﻿@* NutriAI/Views/Account/Register.cshtml *@
+@{
+    ViewData["Title"] = "Registro de Usuario";
+}
+
+<div class="row justify-content-center mt-5">
+    <div class="col-md-5">
+        <div class="card shadow-sm">
+            <div class="card-header bg-success text-white">
+                <h3 class="mb-0">Crear Cuenta</h3>
+            </div>
+            <div class="card-body">
+
+                <div id="message-container" class="alert d-none"></div>
+
+                <form id="registerForm">
+                    <div class="mb-3">
+                        <label for="nombre" class="form-label">Nombre</label>
+                        <input type="text" class="form-control" id="nombre" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Correo Electrónico</label>
+                        <input type="email" class="form-control" id="email" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Contraseña</label>
+                        <input type="password" class="form-control" id="password" required>
+                    </div>
+                    <button type="submit" class="btn btn-success w-100">Registrarse</button>
+                </form>
+
+                <p class="mt-3 text-center">
+                    ¿Ya tienes cuenta? <a href="/Account/Login">Iniciar Sesión</a>.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        document.getElementById('registerForm').addEventListener('submit', async (event) => {
+            event.preventDefault(); // Detener el envío tradicional
+
+            const nombre = document.getElementById('nombre').value;
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const messageContainer = document.getElementById('message-container');
+
+            const registerData = { nombre, email, password };
+
+            try {
+                // 1. Enviar la solicitud POST al endpoint de la API
+                const response = await fetch('/api/Auth/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(registerData)
+                });
+
+                const result = await response.json();
+
+                if (response.status === 201) {
+                    // 2. Registro Exitoso: Redirigir al usuario al login
+                    messageContainer.textContent = result.message || 'Registro exitoso. Serás redirigido.';
+                    messageContainer.className = 'alert alert-success';
+                    messageContainer.classList.remove('d-none');
+
+                    setTimeout(() => {
+                        window.location.href = '/Account/Login';
+                    }, 1500); // Dar tiempo para leer el mensaje
+
+                } else {
+                    // 3. Manejar errores (ej: 409 Conflict)
+                    messageContainer.textContent = result.message || 'Error desconocido al registrar.';
+                    messageContainer.className = 'alert alert-danger';
+                    messageContainer.classList.remove('d-none');
+                }
+            } catch (error) {
+                console.error('Error de conexión:', error);
+                messageContainer.textContent = 'Error de conexión con el servidor.';
+                messageContainer.className = 'alert alert-danger';
+                messageContainer.classList.remove('d-none');
+            }
+        });
+    </script>
+}
