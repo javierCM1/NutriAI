@@ -52,7 +52,11 @@ public class AuthController : ControllerBase
             return Unauthorized(new { message = "Credenciales inválidas." });
         }
 
-        // 200 OK: Login exitoso. Devuelve información esencial (sin el hash).
-        return Ok(new { message = "Login exitoso.", email = usuario.Email, rol = usuario.Rol });
+        // Generar el token JWT
+        var token = _authService.GenerateJwtToken(usuario);
+
+        // Devolver el token en la respuesta
+        // 200 OK: Login exitoso.
+        return Ok(new { message = "Login exitoso.", token = token, email = usuario.Email, rol = usuario.Rol });
     }
 }
