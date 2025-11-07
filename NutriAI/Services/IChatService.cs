@@ -1,4 +1,5 @@
 ﻿using Entidad.Models;
+using NutriAI.Models.DTOs;
 
 namespace NutriAI.Services
 {
@@ -15,5 +16,24 @@ namespace NutriAI.Services
 
         // Obtiene todos los mensajes de una sesión de chat específica
         Task<List<ChatMessage>> GetSessionMessagesAsync(int sessionId);
+
+
+        Task<ChatSession> CreateNewSessionAsync(int usuarioId);
+
+
+        Task<List<ChatMessageDto>> GetMessagesBySessionAsync(int sessionId, int userId);
+
+        Task<bool> DeleteSessionAsync(int sessionId, int userId);
+
+        Task<ChatSession?> GetSessionByIdAsync(int sessionId, int userId);
+
+        Task<List<ChatSession>> GetAllSessionsByUserAsync(int userId);
+
+
+
+
+
+
+
     }
 }

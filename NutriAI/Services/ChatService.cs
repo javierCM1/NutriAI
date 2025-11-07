@@ -1,6 +1,7 @@
 ﻿using Entidad.Context;
 using Entidad.Models;
 using Microsoft.EntityFrameworkCore;
+using NutriAI.Models.DTOs;
 
 namespace NutriAI.Services
 {
@@ -112,6 +113,74 @@ namespace NutriAI.Services
                                  .OrderBy(m => m.Timestamp)
                                  .ToListAsync();
         }
+
+        public async Task<ChatSession> CreateNewSessionAsync(int usuarioId)
+        {
+            var session = new ChatSession
+            {
+                UsuarioId = usuarioId,
+                Title = "Nueva Conversacion",
+                MessageCount = 0,
+                CreatedAt = DateTime.Now
+            };
+
+
+            _context.ChatSessions.Add(session);
+            await _context.SaveChangesAsync();
+
+            return session;
+        }
+
+        public async Task<List<ChatMessageDto>> GetMessagesBySessionAsync(int sessionId, int userId)
+        {
+            return await _context.ChatMessages
+                .Where(m => m.SessionId == sessionId && m.Session.UsuarioId == userId)
+                .OrderBy(m => m.Timestamp)
+                .Select(m => new ChatMessageDto
+                {
+                    Id = m.Id,
+                    Message = m.Message,
+                    IsUserMessage = m.IsUserMessage,
+                    CreatedAt = m.Timestamp
+                })
+                .ToListAsync();
+        }
+
+        public async Task<bool> DeleteSessionAsync(int sessionId, int userId)
+        {
+            var session = await _context.ChatSessions
+                .Include(s => s.ChatMessages)
+                .FirstOrDefaultAsync(s => s.Id == sessionId && s.UsuarioId == userId);
+
+            if (session == null)
+                return false;
+
+            _context.ChatMessages.RemoveRange(session.ChatMessages);
+            _context.ChatSessions.Remove(session);
+            await _context.SaveChangesAsync();
+
+            return true;
+        }
+
+        public async Task<ChatSession?> GetSessionByIdAsync(int sessionId, int userId)
+        {
+            return await _context.ChatSessions
+                .Include(s => s.Usuario)
+                .ThenInclude(u => u.UserInfo)
+                .FirstOrDefaultAsync(s => s.Id == sessionId && s.UsuarioId == userId);
+        }
+
+
+        public async Task<List<ChatSession>> GetAllSessionsByUserAsync(int userId)
+        {
+            return await _context.ChatSessions
+                .Where(s => s.UsuarioId == userId)
+                .OrderByDescending(s => s.LastMessageTime)
+                .ToListAsync();
+        }
+
+
+
     }
 
 

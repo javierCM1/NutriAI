@@ -116,22 +116,20 @@
 </div>
 @section Scripts {
     <script>
+        let currentSessionId = null; // 🟩 ID de la sesión activa actual
+
         // =================================================================================
         // 1. FUNCIÓN AUXILIAR: OBTENER HEADERS DE AUTORIZACIÓN (JWT)
         // =================================================================================
         function getAuthHeaders(contentType = 'application/x-www-form-urlencoded') {
             const token = localStorage.getItem('jwtToken');
-            const headers = {
-                'Content-Type': contentType
-            };
-            if (token) {
-                headers['Authorization'] = `Bearer ${token}`;
-            }
+            const headers = { 'Content-Type': contentType };
+            if (token) headers['Authorization'] = `Bearer ${token}`;
             return headers;
         }
 
         // =================================================================================
-        // 2. FUNCIÓN AUXILIAR: MANEJO DE AUTORIZACIÓN 401/403
+        // 2. FUNCIÓN AUXILIAR: MANEJO DE AUTORIZACIÓN 401/403 + parseo seguro
         // =================================================================================
         function handleAuthResponse(response) {
             if (response.status === 401 || response.status === 403) {
@@ -139,8 +137,26 @@
                 window.location.assign('/Account/Login');
                 throw new Error("Sesión expirada o inválida. Redirigiendo a Login.");
             }
-            // Solo intentamos parsear JSON si la respuesta no está vacía
-            return response.text().then(text => text ? JSON.parse(text) : {});
+
+            const contentType = response.headers.get('content-type') || '';
+
+            if (!response.ok) {
+                // Intentamos leer texto para mostrar diagnóstico, pero rechazamos la promesa
+                return response.text().then(text => {
+                    console.error("Error HTTP:", response.status, text);
+                    throw new Error(text || ("HTTP " + response.status));
+                });
+            }
+
+            if (contentType.includes('application/json')) {
+                return response.json();
+            } else {
+                // Si viene HTML u otro, devolvemos objeto vacío para evitar crash
+                return response.text().then(text => {
+                    console.warn("Respuesta no-JSON recibida (se devuelve {}):", text.slice(0, 200));
+                    return {};
+                });
+            }
         }
 
         // =================================================================================
@@ -152,7 +168,7 @@
             const jwtToken = localStorage.getItem('jwtToken');
             if (!jwtToken) {
                 window.location.assign('/Account/Login');
-                return; // Detener la ejecución
+                return;
             }
 
             // 3.2. CARGAR DATOS INICIALES (Historial de Chat y UserInfo)
@@ -162,15 +178,14 @@
                     headers: getAuthHeaders('application/json')
                 });
 
-                if (response.status === 401 || response.status === 403) {
-                     localStorage.removeItem('jwtToken');
-                     window.location.assign('/Account/Login');
-                     return;
+                const data = await handleAuthResponse(response);
+
+                // Si GetInitialData devuelve currentSessionId, lo usamos
+                if (data && data.currentSessionId) {
+                    currentSessionId = data.currentSessionId;
                 }
 
-                const data = await response.json();
-
-                // Cargar historial de mensajes
+                // Cargar mensajes iniciales (si hay)
                 if (data.chatMessages && data.chatMessages.length > 0) {
                     data.chatMessages.forEach(msg => {
                         addMessage(msg.isUserMessage ? "Tú" : "NutriAI", msg.message);
@@ -183,12 +198,12 @@
                 if (data.chatSessions && data.chatSessions.length > 0) {
                     data.chatSessions.forEach(session => {
                         const sessionHtml = `
-                            <div class="history-item" data-session-id="${session.id}">
+                            <div class="history-item ${session.id == currentSessionId ? 'active' : ''}" data-session-id="${session.id}">
                                 <div class="d-flex justify-content-between">
                                     <strong>${session.title}</strong>
-                                    <span>${session.messageCount} mensajes</span>
+                                    <span>${session.messageCount ?? 0} mensajes</span>
                                 </div>
-                                <small>${new Date(session.lastMessageTime).toLocaleString()}</small>
+                                <small>${session.lastMessageTime ? new Date(session.lastMessageTime).toLocaleString() : ''}</small>
                             </div>`;
                         historyList.insertAdjacentHTML('beforeend', sessionHtml);
                     });
@@ -198,11 +213,20 @@
 
                 // Cargar UserInfo (en el modal)
                 if (data.userInfo) {
+                    const ui = data.userInfo;
+                    document.getElementById('UserInfo_Edad').value = ui.edad ?? '';
+                    document.getElementById('UserInfo_Altura').value = ui.altura ?? '';
+                    document.getElementById('UserInfo_Peso').value = ui.peso ?? '';
+                    document.getElementById('UserInfo_PreferenciaAlimenticia').value = ui.preferenciaAlimenticia ?? '';
+                }
 
-                    document.getElementById('UserInfo_Edad').value = data.userInfo.edad;
-                    document.getElementById('UserInfo_Altura').value = data.userInfo.altura;
-                    document.getElementById('UserInfo_Peso').value = data.userInfo.peso;
-                    document.getElementById('UserInfo_PreferenciaAlimenticia').value = data.userInfo.preferenciaAlimenticia;
+                // Si hay una sesión actual definida, cargamos sus mensajes
+                if (currentSessionId) {
+                    await cargarMensajes(currentSessionId);
+                    // marcar la activa visualmente
+                    document.querySelectorAll(".history-item").forEach(el => el.classList.remove("active"));
+                    const activeEl = document.querySelector(`.history-item[data-session-id="${currentSessionId}"]`);
+                    if (activeEl) activeEl.classList.add("active");
                 }
 
             } catch (error) {
@@ -210,86 +234,256 @@
                 if (error.message && error.message.startsWith("Sesión expirada")) return;
                 localStorage.removeItem('jwtToken');
                 window.location.assign('/Account/Login');
+                return;
             }
 
             // =================================================================================
             // 4. EVENTO: GUARDAR DATOS DEL USUARIO (GuardarUserInfo)
             // =================================================================================
             const userInfoForm = document.getElementById("userInfoForm");
+            if (userInfoForm) {
+                userInfoForm.addEventListener("submit", function (e) {
+                    e.preventDefault();
+                    const formData = new FormData(userInfoForm);
+                    const bodyParams = new URLSearchParams();
+                    bodyParams.append("__RequestVerificationToken", formData.get("__RequestVerificationToken"));
+                    bodyParams.append("Edad", formData.get("UserInfo.Edad"));
+                    bodyParams.append("Altura", formData.get("UserInfo.Altura"));
+                    bodyParams.append("Peso", formData.get("UserInfo.Peso"));
+                    bodyParams.append("PreferenciaAlimenticia", formData.get("UserInfo.PreferenciaAlimenticia"));
 
-            userInfoForm.addEventListener("submit", function (e) {
-                e.preventDefault();
-                const formData = new FormData(userInfoForm);
-                const bodyParams = new URLSearchParams();
-
-                // Usamos los nombres de propiedad del modelo UserInfo (Edad, Peso, etc.)
-                // para que el ModelBinding del controlador [FromForm] funcione.
-                bodyParams.append("__RequestVerificationToken", formData.get("__RequestVerificationToken"));
-                bodyParams.append("Edad", formData.get("UserInfo.Edad"));
-                bodyParams.append("Altura", formData.get("UserInfo.Altura"));
-                bodyParams.append("Peso", formData.get("UserInfo.Peso"));
-                bodyParams.append("PreferenciaAlimenticia", formData.get("UserInfo.PreferenciaAlimenticia"));
-
-                fetch("/Chat/GuardarUserInfo", {
-                    method: "POST",
-                    headers: getAuthHeaders("application/x-www-form-urlencoded"),
-                    body: bodyParams
-                })
-                .then(handleAuthResponse)
-                .then(data => {
-                    const modal = bootstrap.Modal.getInstance(document.getElementById('userInfoModal'));
-                    modal.hide();
-                    addMessage("NutriAI", data.mensaje);
-                })
-                .catch(err => {
-                    if (err.message && err.message.startsWith("Sesión expirada")) return;
-                    console.error(err);
-                    addMessage("NutriAI", "Error al guardar los datos del usuario.");
+                    fetch("/Chat/GuardarUserInfo", {
+                        method: "POST",
+                        headers: getAuthHeaders("application/x-www-form-urlencoded"),
+                        body: bodyParams
+                    })
+                    .then(handleAuthResponse)
+                    .then(data => {
+                        const modal = bootstrap.Modal.getInstance(document.getElementById('userInfoModal'));
+                        if (modal) modal.hide();
+                        addMessage("NutriAI", data.mensaje || "Datos guardados.");
+                    })
+                    .catch(err => {
+                        if (err.message && err.message.startsWith("Sesión expirada")) return;
+                        console.error(err);
+                        addMessage("NutriAI", "Error al guardar los datos del usuario.");
+                    });
                 });
+            }
+
+            // =================================================================================
+            // 5. EVENTO: ENVIAR MENSAJE (sendMessage) -> GLOBAL para que onclick funcione
+            // =================================================================================
+                       // =================================================================================
+        // 5. EVENTO: ENVIAR MENSAJE (sendMessage)
+        // =================================================================================
+        window.sendMessage = async function () {
+            const input = document.getElementById("messageInput");
+            const message = input.value.trim();
+
+            if (!message) return;
+            if (!currentSessionId) {
+                alert("Selecciona o crea un chat antes de enviar un mensaje.");
+                return;
+            }
+
+            addMessage("Tú", message);
+            input.value = "";
+            showTypingIndicator();
+
+            try {
+              const res = await fetch(`/Chat/EnviarMensaje`, {
+            method: "POST",
+            headers: getAuthHeaders("application/x-www-form-urlencoded"),
+            body: new URLSearchParams({
+                sessionId: currentSessionId,  // ✅ AHORA se envía correctamente
+                mensaje: message
+            })
+        });
+
+                const data = await handleAuthResponse(res); // usa el manejador global de respuestas
+
+                hideTypingIndicator();
+
+                if (data && data.respuesta) {
+                    addMessage("NutriAI", data.respuesta);
+                } else {
+                    addMessage("NutriAI", "No se recibió respuesta del servidor.");
+                }
+
+                // 🔄 Actualizamos los mensajes para que se sincronicen
+                await cargarMensajes(currentSessionId);
+
+            } catch (err) {
+                hideTypingIndicator();
+                console.error("Error al enviar mensaje:", err);
+                addMessage("NutriAI", "Error al enviar el mensaje.");
+            }
+        };
+
+
+            // =================================================================================
+            // 6. CREAR NUEVO CHAT
+            // =================================================================================
+                          document.getElementById("newChatBtn").addEventListener("click", async () => {
+            try {
+                const response = await fetch('/Chat/NuevaSesion', {
+                    method: 'POST',
+                    headers: getAuthHeaders('application/json')
+                });
+
+                const data = await handleAuthResponse(response);
+
+                if (data && data.success && data.sessionId) {
+                    // ✅ Creamos el nuevo item en el historial sin recargar todo
+                    const historyList = document.getElementById("historyList");
+                    const div = document.createElement("div");
+                    div.className = "history-item active";
+                    div.dataset.sessionId = data.sessionId;
+                    div.innerHTML = `
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>${data.title || "Nueva conversación"}</strong><br>
+                                <small>${new Date().toLocaleString()}</small>
+                            </div>
+                            <button class="btn btn-sm btn-outline-danger delete-chat" data-id="${data.sessionId}">&times;</button>
+                        </div>
+                    `;
+
+                    // Desactivar otros y agregar el nuevo arriba
+                    document.querySelectorAll(".history-item").forEach(el => el.classList.remove("active"));
+                    historyList.prepend(div);
+
+                    // ✅ Guardar y limpiar la sesión actual
+                    currentSessionId = data.sessionId;
+                    const chatContainer = document.getElementById("chatMessages");
+                    chatContainer.innerHTML = '<div class="welcome-message">Nueva conversación iniciada.</div>';
+                } else {
+                    console.error("Error al crear sesión:", data);
+                    alert("No se pudo crear la nueva conversación.");
+                }
+            } catch (err) {
+                console.error("Error creando nueva sesión:", err);
+                alert("Error al crear la conversación. Revisa la consola.");
+            }
+        });
+
+            // =================================================================================
+            // 7. CAMBIAR ENTRE CONVERSACIONES y BORRAR (delegación)
+            // =================================================================================
+            document.getElementById("historyList").addEventListener("click", async (e) => {
+                // borrar (si existe el botón .delete-chat)
+                const deleteBtn = e.target.closest(".delete-chat");
+                if (deleteBtn) {
+                    const id = deleteBtn.dataset.id;
+                    if (!confirm("¿Seguro que querés eliminar esta conversación?")) return;
+                    try {
+                        const res = await fetch(`/Chat/BorrarSesion/${id}`, {
+                            method: 'DELETE',
+                            headers: getAuthHeaders('application/json')
+                        });
+                        const data = await handleAuthResponse(res);
+                        if (data && data.success) {
+                            await cargarHistorial();
+                            document.getElementById("chatMessages").innerHTML = `<div class="welcome-message">Conversación eliminada.</div>`;
+                            if (currentSessionId == id) currentSessionId = null;
+                        } else {
+                            alert("Error al eliminar: " + (data.message || "respuesta inválida"));
+                        }
+                    } catch (err) {
+                        console.error("Error borrando sesión:", err);
+                        alert("Error al eliminar conversación.");
+                    }
+                    return;
+                }
+
+                // seleccionar conversación
+                const item = e.target.closest(".history-item");
+                if (!item) return;
+                const sessionId = item.dataset.sessionId;
+                currentSessionId = sessionId;
+                document.querySelectorAll(".history-item").forEach(el => el.classList.remove("active"));
+                item.classList.add("active");
+                await cargarMensajes(currentSessionId);
             });
 
             // =================================================================================
-            // 5. EVENTO: ENVIAR MENSAJE (EnviarMensaje)
+            // 8. FUNCIONES PARA CARGAR HISTORIAL Y MENSAJES
             // =================================================================================
-            window.sendMessage = function () {
-                const messageInput = document.getElementById("messageInput");
-                const message = messageInput.value.trim();
-                if (!message) return;
+            async function cargarHistorial() {
+                try {
+                    const res = await fetch('/Chat/GetInitialData', {
+                        headers: getAuthHeaders('application/json')
+                    });
+                    const data = await handleAuthResponse(res);
 
-                addMessage("Tú", message);
-                messageInput.value = "";
-                showTypingIndicator();
+                    const historyList = document.getElementById("historyList");
+                    historyList.innerHTML = '';
 
-                fetch("/Chat/EnviarMensaje", {
-                    method: "POST",
-                    headers: getAuthHeaders("application/x-www-form-urlencoded"),
-                    body: new URLSearchParams({ mensaje: message })
-                })
-                .then(handleAuthResponse)
-                .then(data => {
-                    hideTypingIndicator();
-                    addMessage("NutriAI", data.respuesta);
-                })
-                .catch(err => {
-                    if (err.message && err.message.startsWith("Sesión expirada")) return;
-                    hideTypingIndicator();
-                    addMessage("NutriAI", "Error al comunicarse con el servidor.");
-                });
-            };
+                    if (!data.chatSessions || data.chatSessions.length === 0) {
+                        historyList.innerHTML = '<p>No hay conversaciones previas</p>';
+                        return;
+                    }
+
+                    data.chatSessions.forEach(s => {
+                        const div = document.createElement("div");
+                        div.className = "history-item";
+                        div.dataset.sessionId = s.id;
+                        div.innerHTML = `
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong>${s.title}</strong><br>
+                                    <small>${s.lastMessageTime ? new Date(s.lastMessageTime).toLocaleString() : ''}</small>
+                                </div>
+                                <button class="btn btn-sm btn-outline-danger delete-chat" data-id="${s.id}">&times;</button>
+                            </div>
+                        `;
+                        historyList.appendChild(div);
+                    });
+                } catch (err) {
+                    console.error("Error al cargar historial:", err);
+                }
+            }
+
+            async function cargarMensajes(sessionId) {
+                if (!sessionId) return;
+                try {
+                    const res = await fetch(`/Chat/GetMessages?sessionId=${sessionId}`, {
+                        headers: getAuthHeaders('application/json')
+                    });
+                    const data = await handleAuthResponse(res);
+
+                    const chatContainer = document.getElementById("chatMessages");
+                    chatContainer.innerHTML = "";
+
+                    if (!data.messages || data.messages.length === 0) {
+                        chatContainer.innerHTML = '<div class="welcome-message">Sin mensajes aún.</div>';
+                        return;
+                    }
+
+                    data.messages.forEach(msg => {
+                        const div = document.createElement("div");
+                        div.className = msg.isUserMessage ? "message user-message mb-2 p-2 rounded" : "message bot-message mb-2 p-2 rounded";
+                        div.innerHTML = `<strong>${msg.isUserMessage ? "Tú" : "NutriAI"}:</strong> ${msg.message}`;
+                        chatContainer.appendChild(div);
+                    });
+                } catch (err) {
+                    console.error("Error cargando mensajes:", err);
+                    document.getElementById("chatMessages").innerHTML = '<div class="welcome-message">Error cargando mensajes.</div>';
+                }
+            }
 
             // =================================================================================
-            // 6. FUNCIONES AUXILIARES DE VISTA 
+            // 9. FUNCIONES VISUALES DE CHAT (addMessage, typing, keypress)
             // =================================================================================
-
             function addMessage(sender, text) {
                 const msgContainer = document.getElementById("chatMessages");
                 const welcome = msgContainer.querySelector(".welcome-message");
-                if (welcome) {
-                    welcome.style.display = "none";
-                }
+                if (welcome) welcome.style.display = "none";
+
                 const div = document.createElement("div");
                 div.className = sender === "NutriAI" ? "message bot-message mb-2 p-2 rounded" : "message user-message mb-2 p-2 rounded";
-                div.innerHTML = `<strong>${sender}:</strong> ${text}`; 
+                div.innerHTML = `<strong>${sender}:</strong> ${text}`;
                 msgContainer.appendChild(div);
                 msgContainer.scrollTop = msgContainer.scrollHeight;
             }
@@ -306,18 +500,24 @@
 
             function hideTypingIndicator() {
                 const typingIndicator = document.getElementById("typingIndicator");
-                if (typingIndicator) {
-                    typingIndicator.remove();
-                }
+                if (typingIndicator) typingIndicator.remove();
             }
 
-            document.getElementById("messageInput").addEventListener("keypress", function(e) {
-                if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    sendMessage();
-                }
-            });
+            // tecla Enter para enviar (sin romper shift+enter)
+            const messageInputEl = document.getElementById("messageInput");
+            if (messageInputEl) {
+                messageInputEl.addEventListener("keypress", function(e) {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        window.sendMessage();
+                    }
+                });
+            }
 
-        }); 
+            // cargamos historial al final de inicialización
+            await cargarHistorial();
+
+        }); // fin DOMContentLoaded
+
     </script>
 }

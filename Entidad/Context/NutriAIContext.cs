@@ -64,3 +64,5 @@ public partial class NutriAIContext : DbContext
 
     partial void OnModelCreatingPartial(ModelBuilder modelBuilder);
 }
+
+

@@ -41,18 +41,26 @@ namespace NutriAI.Controllers
         {
             try
             {
-
                 int userId = GetUserIDFromToken();
 
-                var currentSession = await _chatService.GetOrCreateCurrentSessionAsync(userId);
+                // 🔹 Obtener todas las sesiones del usuario
+                var allSessions = await _chatService.GetAllSessionsByUserAsync(userId);
+
+                // 🔹 Obtener la sesión actual (si no hay, crearla)
+                var currentSession = allSessions.LastOrDefault()
+                                     ?? await _chatService.GetOrCreateCurrentSessionAsync(userId);
+
+                // 🔹 Obtener los mensajes de esa sesión
                 var messages = await _chatService.GetSessionMessagesAsync(currentSession.Id);
 
-                // Devolvemos los datos como JSON
+                // 🔹 Obtener información del usuario
+                var userInfo = currentSession.Usuario?.UserInfo;
+
                 return Json(new
                 {
                     currentSessionId = currentSession.Id.ToString(),
-                    chatSessions = new List<ChatSession> { currentSession },
-                    userInfo = currentSession.Usuario?.UserInfo,
+                    chatSessions = allSessions, // ✅ Devuelve todas las sesiones
+                    userInfo,
                     chatMessages = messages
                 });
             }
@@ -121,26 +129,27 @@ namespace NutriAI.Controllers
             }
         }
 
-        // ENVIAR MENSAJE (Guarda en BD y llama a la IA)
         [Authorize(Roles = "Usuario, Admin")]
         [HttpPost]
-        public async Task<IActionResult> EnviarMensaje([FromForm] string mensaje)
+        public async Task<IActionResult> EnviarMensaje([FromForm] string mensaje, [FromForm] int sessionId)
         {
             try
             {
                 int userId = GetUserIDFromToken();
 
-                // 1. Obtener sesión activa y UserInfo asociado
-                var session = await _chatService.GetOrCreateCurrentSessionAsync(userId);
-                var userInfo = session.Usuario?.UserInfo;
+                // 1️⃣ Buscar la sesión correspondiente al usuario
+                var session = await _chatService.GetSessionByIdAsync(sessionId, userId);
+                if (session == null)
+                    return Json(new { respuesta = "Error: sesión no encontrada o no pertenece al usuario." });
 
+                var userInfo = session.Usuario?.UserInfo;
                 if (userInfo == null)
                     return Json(new { respuesta = "Error: Datos de perfil no encontrados. Completa el formulario." });
 
-                // 2. GUARDAR MENSAJE DEL USUARIO en la BD
+                // 2️⃣ Guardar mensaje del usuario
                 await _chatService.AddMessageAsync(session.Id, mensaje, true);
 
-                // 3. Llamada al servicio de IA
+                // 3️⃣ Llamar a la IA
                 var respuestaIA = await _ollamaService.GetNutritionResponseAsync(
                     userInfo.Edad ?? 0,
                     (double)(userInfo.Peso ?? 0),
@@ -149,19 +158,80 @@ namespace NutriAI.Controllers
                     mensaje
                 );
 
-                // 4. GUARDAR RESPUESTA DE LA IA en la BD
+                // 4️⃣ Guardar respuesta de la IA
                 await _chatService.AddMessageAsync(session.Id, respuestaIA, false);
 
                 return Json(new { respuesta = respuestaIA });
             }
-            catch (UnauthorizedAccessException)
+            catch (Exception ex)
             {
-                return Unauthorized();
-            }
-            catch
-            {
-                return Json(new { respuesta = "Error al comunicarse con el servicio de IA o al guardar el mensaje." });
+                return Json(new { respuesta = "Error al comunicarse con la IA: " + ex.Message });
             }
         }
+
+
+        [Authorize(Roles = "Usuario,Admin")]
+        [HttpPost]
+        public async Task<IActionResult> NuevaSesion()
+        {
+            try
+            {
+                int userId = GetUserIDFromToken();
+
+
+                var session = await _chatService.CreateNewSessionAsync(userId);
+                return Json(new
+                {
+                    success = true,
+                    sessionId = session.Id,
+                    title = session.Title,
+                    messageCount = session.MessageCount
+
+                });
+
+
+            }
+
+            catch (Exception ex)
+            {
+                return Json(new { success = false, message = ex.Message });
+            }
+        }
+
+        [Authorize(Roles = "Usuario,Admin")]
+        [HttpGet]
+        public async Task<IActionResult> GetMessages(int sessionId)
+        {
+            try
+            {
+                int userId = GetUserIDFromToken();
+                var messages = await _chatService.GetMessagesBySessionAsync(sessionId, userId);
+                return Json(new { success = true, messages });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, message = ex.Message });
+            }
+        }
+
+        [Authorize(Roles = "Usuario,Admin")]
+        [HttpDelete]
+        public async Task<IActionResult> BorrarSesion(int id)
+        {
+            try
+            {
+                int userId = GetUserIDFromToken();
+                var result = await _chatService.DeleteSessionAsync(id, userId);
+                return Json(new { success = result });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, message = ex.Message });
+            }
+        }
+
+
+
+
     }
 }
