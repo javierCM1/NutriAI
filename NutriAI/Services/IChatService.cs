@@ -9,10 +9,12 @@ namespace NutriAI.Services
         Task<ChatSession> GetOrCreateCurrentSessionAsync(int userId);
 
         // guarda el mensaje de el usuario y la IA en la base de datos
-        Task<ChatMessage> AddMessageAsync(int sessionId, string message, bool isUserMessage);
+        Task<ChatMessage> AddMessageAsync(int sessionId, string message, bool isUserMessage, int userId);
 
         // Actualiza la información del usuario en la base de datos
         Task UpdateUserInfoAsync(int userId, UserInfo userInfoData);
+
+        Task<Usuario> GetUsuarioWithUserInfoAsync(int userId);
 
         // Obtiene todos los mensajes de una sesión de chat específica
         Task<List<ChatMessage>> GetSessionMessagesAsync(int sessionId);
