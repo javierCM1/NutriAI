@@ -24,6 +24,7 @@ public partial class NutriAIContext : DbContext
 
     public virtual DbSet<Usuario> Usuarios { get; set; }
 
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<ChatMessage>(entity =>
@@ -64,3 +65,5 @@ public partial class NutriAIContext : DbContext
 
     partial void OnModelCreatingPartial(ModelBuilder modelBuilder);
 }
+
+

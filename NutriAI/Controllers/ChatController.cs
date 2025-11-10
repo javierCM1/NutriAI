@@ -8,21 +8,22 @@ using System.Security.Claims;
 
 namespace NutriAI.Controllers
 {
+    [Authorize]
     public class ChatController : Controller
     {
         private readonly OllamaService _ollamaService;
         private readonly IChatService _chatService;
 
-        // Inyección de dependencias de los servicios
         public ChatController(OllamaService ollamaService, IChatService chatService)
         {
             _ollamaService = ollamaService;
             _chatService = chatService;
         }
 
+        [Authorize(Roles = "Usuario,Admin")]
         public IActionResult Index()
         {
-
+            // Solo devuelve la vista con un modelo vacío; la sesión real se carga vía JS
             var model = new ChatViewModel
             {
                 CurrentSessionId = "",
@@ -30,29 +31,49 @@ namespace NutriAI.Controllers
                 UserInfo = null,
                 ChatMessages = new List<ChatMessage>()
             };
-
             return View(model);
         }
 
-        // NutriAI/Controllers/ChatController.cs
-
-        [Authorize(Roles = "Usuario, Admin")]
+        [Authorize(Roles = "Usuario,Admin")]
         public async Task<IActionResult> GetInitialData()
         {
             try
             {
-
                 int userId = GetUserIDFromToken();
 
-                var currentSession = await _chatService.GetOrCreateCurrentSessionAsync(userId);
+                // 🔹 Obtener usuario completo con UserInfo
+                var usuario = await _chatService.GetUsuarioWithUserInfoAsync(userId);
+
+                // 🔹 Crear UserInfo si no existe
+                if (usuario.UserInfo == null)
+                {
+                    var newUserInfo = new UserInfo
+                    {
+                        UsuarioId = userId,
+                        Edad = null,
+                        Altura = null,
+                        Peso = null,
+                        PreferenciaAlimenticia = ""
+                    };
+                    await _chatService.UpdateUserInfoAsync(userId, newUserInfo);
+                    usuario = await _chatService.GetUsuarioWithUserInfoAsync(userId); // recargar
+                }
+
+                // 🔹 Obtener todas las sesiones
+                var allSessions = await _chatService.GetAllSessionsByUserAsync(userId);
+
+                // 🔹 Obtener sesión actual o crear nueva
+                var currentSession = allSessions.LastOrDefault()
+                                     ?? await _chatService.GetOrCreateCurrentSessionAsync(userId);
+
+                // 🔹 Obtener mensajes de la sesión actual
                 var messages = await _chatService.GetSessionMessagesAsync(currentSession.Id);
 
-                // Devolvemos los datos como JSON
                 return Json(new
                 {
-                    currentSessionId = currentSession.Id.ToString(),
-                    chatSessions = new List<ChatSession> { currentSession },
-                    userInfo = currentSession.Usuario?.UserInfo,
+                    currentSessionId = currentSession.Id,
+                    chatSessions = allSessions,
+                    userInfo = usuario.UserInfo,
                     chatMessages = messages
                 });
             }
@@ -62,24 +83,7 @@ namespace NutriAI.Controllers
             }
         }
 
-        // OBTENER USER ID DESDE EL TOKEN JWT
-        private int GetUserIDFromToken()
-        {
-            // NO NECESITAS TRY/CATCH AQUÍ. El [Authorize] ya garantiza que el Claim existe.
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-
-            // Convertimos el Claim a entero de forma segura.
-            if (int.TryParse(userIdClaim, out int userId))
-            {
-                return userId;
-            }
-            // Si falla la conversión, lanzamos una excepción, pero el [Authorize]
-            // ya debería haber atrapado el problema.
-            throw new InvalidOperationException("Claim de ID de usuario no válido.");
-        }
-
-        // GUARDAR USER INFO (Actualiza perfil y llama a la IA)
-        [Authorize(Roles = "Usuario, Admin")]
+        [Authorize(Roles = "Usuario,Admin")]
         [HttpPost]
         public async Task<IActionResult> GuardarUserInfo(UserInfo userInfo)
         {
@@ -89,58 +93,45 @@ namespace NutriAI.Controllers
             try
             {
                 int userId = GetUserIDFromToken();
+                userInfo.UsuarioId = userId;
 
-                // 1. GUARDAR/ACTUALIZAR UserInfo en la BD a través del servicio
-                userInfo.UsuarioId = userId; // Vincula el perfil al usuario actual
-                await _chatService.UpdateUserInfoAsync(userId, userInfo); // <--- LÍNEA DONDE FALLA LA BD
+                await _chatService.UpdateUserInfoAsync(userId, userInfo);
 
-                // 2. Llamada inicial a la IA
                 var respuesta = await _ollamaService.GetNutritionResponseAsync(
                     userInfo.Edad ?? 0,
                     (double)(userInfo.Peso ?? 0),
                     (double)(userInfo.Altura ?? 0),
                     userInfo.PreferenciaAlimenticia ?? "",
                     "Hola, acabo de registrar mis datos. ¿Podrías darme una recomendación nutricional general para mi perfil?"
-                   );
+                );
 
-                // 3. Devolver la respuesta de la IA al cliente
                 return Json(new { mensaje = respuesta });
             }
-            catch (UnauthorizedAccessException)
-            {
-                return Unauthorized();
-            }
-            // ESTE BLOQUE CAPTURA EL ERROR DE LA BASE DE DATOS Y LO EXPONE
             catch (Exception ex)
             {
-                // Extrae el mensaje de error de la excepción interna (el error real de SQL Server o EF Core)
                 string errorMessage = ex.InnerException?.Message ?? ex.Message;
-
-                // Devolvemos el mensaje de error de la BD al cliente para el diagnóstico
                 return Json(new { mensaje = "ERROR DE BD: " + errorMessage });
             }
         }
 
-        // ENVIAR MENSAJE (Guarda en BD y llama a la IA)
-        [Authorize(Roles = "Usuario, Admin")]
+        [Authorize(Roles = "Usuario,Admin")]
         [HttpPost]
-        public async Task<IActionResult> EnviarMensaje([FromForm] string mensaje)
+        public async Task<IActionResult> EnviarMensaje([FromForm] string mensaje, [FromForm] int sessionId)
         {
             try
             {
                 int userId = GetUserIDFromToken();
 
-                // 1. Obtener sesión activa y UserInfo asociado
-                var session = await _chatService.GetOrCreateCurrentSessionAsync(userId);
+                var session = await _chatService.GetSessionByIdAsync(sessionId, userId);
+                if (session == null)
+                    return Json(new { respuesta = "Error: sesión no encontrada o no pertenece al usuario." });
+
                 var userInfo = session.Usuario?.UserInfo;
-
                 if (userInfo == null)
-                    return Json(new { respuesta = "Error: Datos de perfil no encontrados. Completa el formulario." });
+                    return Json(new { respuesta = "Error: completa tu perfil antes de enviar mensajes." });
 
-                // 2. GUARDAR MENSAJE DEL USUARIO en la BD
-                await _chatService.AddMessageAsync(session.Id, mensaje, true);
+                await _chatService.AddMessageAsync(session.Id, mensaje, true, userId);
 
-                // 3. Llamada al servicio de IA
                 var respuestaIA = await _ollamaService.GetNutritionResponseAsync(
                     userInfo.Edad ?? 0,
                     (double)(userInfo.Peso ?? 0),
@@ -149,19 +140,76 @@ namespace NutriAI.Controllers
                     mensaje
                 );
 
-                // 4. GUARDAR RESPUESTA DE LA IA en la BD
-                await _chatService.AddMessageAsync(session.Id, respuestaIA, false);
+                await _chatService.AddMessageAsync(session.Id, respuestaIA, false, userId);
 
                 return Json(new { respuesta = respuestaIA });
             }
-            catch (UnauthorizedAccessException)
+            catch (Exception ex)
             {
-                return Unauthorized();
+                return Json(new { respuesta = "Error al comunicarse con la IA: " + ex.Message });
             }
-            catch
+        }
+
+        [Authorize(Roles = "Usuario,Admin")]
+        [HttpPost]
+        public async Task<IActionResult> NuevaSesion()
+        {
+            try
             {
-                return Json(new { respuesta = "Error al comunicarse con el servicio de IA o al guardar el mensaje." });
+                int userId = GetUserIDFromToken();
+                var session = await _chatService.CreateNewSessionAsync(userId);
+                return Json(new
+                {
+                    success = true,
+                    sessionId = session.Id,
+                    title = session.Title,
+                    messageCount = session.MessageCount
+                });
             }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, message = ex.Message });
+            }
+        }
+
+        [Authorize(Roles = "Usuario,Admin")]
+        [HttpGet]
+        public async Task<IActionResult> GetMessages(int sessionId)
+        {
+            try
+            {
+                int userId = GetUserIDFromToken();
+                var messages = await _chatService.GetMessagesBySessionAsync(sessionId, userId);
+                return Json(new { success = true, messages });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, message = ex.Message });
+            }
+        }
+
+        [Authorize(Roles = "Usuario,Admin")]
+        [HttpDelete]
+        public async Task<IActionResult> BorrarSesion(int id)
+        {
+            try
+            {
+                int userId = GetUserIDFromToken();
+                var result = await _chatService.DeleteSessionAsync(id, userId);
+                return Json(new { success = result });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, message = ex.Message });
+            }
+        }
+
+        private int GetUserIDFromToken()
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (int.TryParse(userIdClaim, out int userId))
+                return userId;
+            throw new InvalidOperationException("Claim de ID de usuario no válido.");
         }
     }
 }
