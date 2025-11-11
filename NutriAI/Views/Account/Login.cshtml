@@ -3,38 +3,47 @@
 @{
     ViewData["Title"] = "Iniciar Sesión";
 }
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nutri AI - Iniciar Sesión</title>
+    <link rel="stylesheet" href="/css/login.css" />
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-header">
+            <h3><i class="fas fa-seedling"></i> NutriAI</h3>
+            <p class="mb-0">Tu nutricionista virtual</p>
+        </div>
 
-<div class="row justify-content-center mt-5">
-    <div class="col-md-5">
-        <div class="card shadow-sm">
-            <div class="card-header bg-primary text-white">
-                <h3 class="mb-0">Inicio de Sesión</h3>
-            </div>
-            <div class="card-body">
+        <div class="login-body">
 
-                <div id="message-container" class="alert d-none"></div>
 
-                <form id="loginForm">
-                    <div class="mb-3">
-                        <label for="email" class="form-label">Correo Electrónico</label>
-                        <input type="email" class="form-control" id="email" required>
-                    </div>
-                    <div class="mb-3">
-                        <label for="password" class="form-label">Contraseña</label>
-                        <input type="password" class="form-control" id="password" required>
-                    </div>
-                    <button type="submit" class="btn btn-primary w-100">Acceder</button>
-                </form>
+            <!-- Contenedor para mensajes -->
+            <div id="message-container" class="alert d-none"></div>
 
-                <p class="mt-3 text-center">
-                    ¿No tienes cuenta? <a href="/Account/Register">Regístrate aquí</a>.
-                </p>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="email">Correo Electrónico</label>
+                    <input type="email" id="email" required placeholder="tu@email.com">
+                </div>
+
+                <div class="form-group">
+                    <label for="password">Contraseña</label>
+                    <input type="password" id="password" required placeholder="••••••••">
+                </div>
+
+                <button type="submit" class="btn">Acceder</button>
+            </form>
+
+            <div class="form-footer">
+                <p>¿No tienes una cuenta? <a href="/Account/Register">Regístrate aquí</a></p>
             </div>
         </div>
     </div>
-</div>
 
-@section Scripts {
     <script>
         document.getElementById('loginForm').addEventListener('submit', async (event) => {
             event.preventDefault(); // Detener el envío tradicional del formulario
@@ -53,7 +62,6 @@
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify(loginData)
-
                 });
 
                 const result = await response.json();
@@ -89,4 +97,5 @@
             }
         });
     </script>
-}
+</body>
+</html>

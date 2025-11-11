@@ -1,0 +1,154 @@
+﻿namespace NutriAI.wwwroot.css
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+body {
+    background: #fff;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+}
+
+.login-container {
+    width: 100%;
+    max-width: 450px;
+    background-color: white;
+    border-radius: 15px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    overflow: hidden;
+}
+
+.login-header {
+    background: linear-gradient(rgba(76, 175, 80, 0.9), rgba(46, 125, 50, 0.9));
+    color: white;
+    padding: 30px;
+    text-align: center;
+}
+
+    .login-header h1 {
+        font-size: 2.2rem;
+        margin-bottom: 10px;
+    }
+
+    .login-header p {
+        font-size: 1rem;
+        opacity: 0.9;
+    }
+
+.login-body {
+    padding: 40px;
+}
+
+.form-title {
+    font-size: 1.8rem;
+    color: #2E7D32;
+    margin-bottom: 10px;
+    text-align: center;
+}
+
+.form-subtitle {
+    color: #666;
+    margin-bottom: 30px;
+    text-align: center;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+label {
+    display: block;
+    margin-bottom: 8px;
+    color: #333;
+    font-weight: 500;
+}
+
+input {
+    width: 100%;
+    padding: 12px 15px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 1rem;
+    transition: all 0.3s;
+}
+
+    input:focus {
+        outline: none;
+        border-color: #4CAF50;
+        box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
+    }
+
+.btn {
+    width: 100%;
+    padding: 12px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.3s;
+    margin-top: 10px;
+}
+
+    .btn:hover {
+        background-color: #388E3C;
+    }
+
+.form-footer {
+    margin-top: 25px;
+    text-align: center;
+    color: #666;
+}
+
+    .form-footer a {
+        color: #4CAF50;
+        text-decoration: none;
+        font-weight: 500;
+    }
+
+        .form-footer a:hover {
+            text-decoration: underline;
+        }
+
+.logo {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+    .logo span {
+        font-size: 2.5rem;
+        font-weight: bold;
+        color: #4CAF50;
+    }
+
+
+.alert {
+    padding: 12px 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    font-weight: 500;
+}
+
+.alert-success {
+    background-color: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.alert-danger {
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+.d-none {
+    display: none;
+}
