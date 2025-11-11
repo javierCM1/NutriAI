@@ -1,7 +1,8 @@
-﻿
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using NutriAI.Services;
 using NutriAI.Models.DTOs;
+using NutriAI.Services;
+using System.Threading.Tasks;
 
 [Route("api/[controller]")]
 [ApiController]
@@ -15,6 +16,7 @@ public class AuthController : ControllerBase
     }
     // POST /api/Auth/register
     [HttpPost("register")]
+    [AllowAnonymous]
     public async Task<IActionResult> Register([FromBody] RegistroRequest request)
     {
         // 1. Validación de Entrada
@@ -37,26 +39,47 @@ public class AuthController : ControllerBase
 
     // POST /api/Auth/login
     [HttpPost("login")]
+    [AllowAnonymous]
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
         if (!ModelState.IsValid)
-        {
             return BadRequest(ModelState);
-        }
 
         var usuario = await _authService.LoginAsync(request.Email, request.Password);
-
         if (usuario == null)
-        {
-            // 401 Unauthorized: Credenciales incorrectas.
             return Unauthorized(new { message = "Credenciales inválidas." });
-        }
 
-        // Generar el token JWT
         var token = _authService.GenerateJwtToken(usuario);
 
-        // Devolver el token en la respuesta
-        // 200 OK: Login exitoso.
-        return Ok(new { message = "Login exitoso.", token = token, email = usuario.Email, rol = usuario.Rol });
+        // 1️⃣ Guardar JWT en cookie
+        Response.Cookies.Append("jwt_token", token, new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = true,
+            SameSite = SameSiteMode.Strict,
+            IsEssential = true,
+            Expires = null
+        });
+
+        // 2️⃣ Guardar info de usuario en session
+        HttpContext.Session.SetInt32("UserId", usuario.Id);
+        HttpContext.Session.SetString("Rol", usuario.Rol);
+
+        return Ok(new { message = "Login exitoso.", email = usuario.Email, rol = usuario.Rol });
     }
+
+
+    [HttpPost("logout")]
+    [Authorize]
+    public IActionResult Logout()
+    {
+        // Limpiar session
+        HttpContext.Session.Clear();
+
+        // Eliminar cookie JWT
+        Response.Cookies.Delete("jwt_token");
+
+        return Ok(new { message = "Logout exitoso" });
+    }
+
 }

@@ -116,6 +116,7 @@
                                     @Html.TextBoxFor(m => m.UserInfo.Objetivo, new { @class = "form-control", @placeholder = "Ej: Perder peso, ganar músculo..." })
                                     @Html.ValidationMessageFor(m => m.UserInfo.Objetivo, "", new { @class = "text-danger" })
                                 </div>
+
                             }
                         </div>
                         <div class="modal-footer">
@@ -210,7 +211,7 @@
                 const fd = new FormData(form);
                 const body = new URLSearchParams();
                 body.append("__RequestVerificationToken", fd.get("__RequestVerificationToken"));
-                body.append("Sexo", fd.get("UserInfo.Sexo"));
+                body.append("sexo", fd.get("UserInfo.sexo"));
                 body.append("Edad", fd.get("UserInfo.Edad"));
                 body.append("Altura", fd.get("UserInfo.Altura"));
                 body.append("Peso", fd.get("UserInfo.Peso"));
@@ -382,6 +383,7 @@
             }
 
             function cargarUserInfo(ui) {
+
                 document.getElementById("UserInfo_sexo").value = ui.sexo ?? '';
                 document.getElementById("UserInfo_Edad").value = ui.edad ?? '';
                 document.getElementById("UserInfo_Altura").value = ui.altura ?? '';
