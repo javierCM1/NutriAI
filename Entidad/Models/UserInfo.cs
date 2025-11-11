@@ -13,6 +13,9 @@ public partial class UserInfo
     [Key]
     public int Id { get; set; }
 
+    [StringLength(50)]
+    public string sexo { get; set; } = null!;
+
     public int? Edad { get; set; }
 
     [Column(TypeName = "decimal(5, 2)")]
@@ -24,9 +27,10 @@ public partial class UserInfo
     [StringLength(255)]
     public string? PreferenciaAlimenticia { get; set; }
 
-    public int? UsuarioId { get; set; }
+    [StringLength(255)]
+    public string ? Objetivo { get; set; }
 
-    // --- Propiedades Sexo y FactorActividad ELIMINADAS ---
+    public int? UsuarioId { get; set; }
 
     [ForeignKey("UsuarioId")]
     [InverseProperty("UserInfo")]
