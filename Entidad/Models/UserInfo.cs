@@ -26,6 +26,8 @@ public partial class UserInfo
 
     public int? UsuarioId { get; set; }
 
+    // --- Propiedades Sexo y FactorActividad ELIMINADAS ---
+
     [ForeignKey("UsuarioId")]
     [InverseProperty("UserInfo")]
     public virtual Usuario? Usuario { get; set; }

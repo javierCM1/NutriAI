@@ -372,3 +372,11 @@ train_lora.py
 # Archivos de compilación de C# que no se deben subir
 **/bin/
 **/obj/
+
+# Entorno Virtual de Python
+.venv/
+
+# Archivos de Modelos y LoRA
+*.gguf
+lora_con_30k_prompts/
+modelo_fusionado_30k/
